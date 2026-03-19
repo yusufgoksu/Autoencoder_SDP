@@ -17,7 +17,7 @@ def normalize_seconds(ts_list):
 # 1️⃣ MODELLERİ ÇALIŞTIR (HER MODEL AYNI FREKANS İLE)
 # ============================================================
 
-TARGET_HZ = 20  # frekans ayar yerı
+TARGET_HZ = 10 # frekans ayar yerı
 
 print(f"\n=========== ENSEMBLE RUN (HZ={TARGET_HZ}) ===========\n")
 
