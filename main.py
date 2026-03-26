@@ -1,131 +1,119 @@
-# ============================================================
-#   ENSEMBLE ANOMALY DETECTION MAIN SCRIPT + ROOT CAUSE
-# ============================================================
-
-from step3_autoencoder import run_anomaly_detection, analyze_root_cause
+from step3_autoencoder import train_autoencoder
+from step4_anomoly_detection import run_anomaly_detection
 
 
-# ============================================================
-# Zamanı saniyeye yuvarla
-# ============================================================
-def normalize_seconds(ts_list):
-    return set(t.strftime("%Y-%m-%d %H:%M:%S") for t in ts_list)
+def normalize_timestamps(ts_list):
+    return set(t.strftime("%Y-%m-%d %H:%M:%S.%f")[:-3] for t in ts_list)
 
 
+print("\n=========== TRAINING MODELS ===========\n")
 
-# ============================================================
-# 1️⃣ MODELLERİ ÇALIŞTIR (HER MODEL AYNI FREKANS İLE)
-# ============================================================
+model8, scaler8, feats8, _ = train_autoencoder(batch_size=8)
+model16, scaler16, feats16, _ = train_autoencoder(batch_size=16)
+model32, scaler32, feats32, _ = train_autoencoder(batch_size=32)
 
-TARGET_HZ = 10 # frekans ayar yerı
+print("\n=========== TESTING (ENSEMBLE) ===========\n")
 
-print(f"\n=========== ENSEMBLE RUN (HZ={TARGET_HZ}) ===========\n")
+res8, idx8 = run_anomaly_detection(model8, scaler8, feats8)
+res16, idx16 = run_anomaly_detection(model16, scaler16, feats16)
+res32, idx32 = run_anomaly_detection(model32, scaler32, feats32)
 
-err8,  thr8,  idx8,  ts8,  Xs8,  Xp8,  feats = run_anomaly_detection(8,  TARGET_HZ)
-err16, thr16, idx16, ts16, Xs16, Xp16, _    = run_anomaly_detection(16, TARGET_HZ)
-err32, thr32, idx32, ts32, Xs32, Xp32, _    = run_anomaly_detection(32, TARGET_HZ)
+ts8  = res8.loc[idx8, "timestamp"]
+ts16 = res16.loc[idx16, "timestamp"]
+ts32 = res32.loc[idx32, "timestamp"]
 
+ms8  = normalize_timestamps(ts8)
+ms16 = normalize_timestamps(ts16)
+ms32 = normalize_timestamps(ts32)
 
+common_all   = ms8 & ms16 & ms32
+common_8_16  = ms8 & ms16
+common_8_32  = ms8 & ms32
+common_16_32 = ms16 & ms32
 
-# ============================================================
-# 2️⃣ SANİYE DÜZELEMİ
-# ============================================================
-sec8  = normalize_seconds(ts8)
-sec16 = normalize_seconds(ts16)
-sec32 = normalize_seconds(ts32)
+unique_8  = ms8  - (ms16 | ms32)
+unique_16 = ms16 - (ms8  | ms32)
+unique_32 = ms32 - (ms8  | ms16)
 
-
-
-# ============================================================
-# 3️⃣ ORTAK ANOMALİLER
-# ============================================================
-common_all   = sec8 & sec16 & sec32
-common_8_16  = sec8 & sec16
-common_8_32  = sec8 & sec32
-common_16_32 = sec16 & sec32
-
-unique_8  = sec8  - (sec16 | sec32)
-unique_16 = sec16 - (sec8  | sec32)
-unique_32 = sec32 - (sec8  | sec16)
-
-
-
-# ============================================================
-# 4️⃣ SONUÇ YAZDIR
-# ============================================================
 print("\n==================== ENSEMBLE RESULT ====================\n")
 
 print("🔥 3 MODEL ORTAK:")
 print("  →", "\n  → ".join(sorted(common_all)) if common_all else "  ❌ Yok")
 
 print("\n🔥 8 & 16 ORTAK:")
-print("  →", "\n  → ".join(sorted(common_8_16 - common_all)) or "  ❌ Yok")
+only_8_16 = sorted(common_8_16 - common_all)
+print("  →", "\n  → ".join(only_8_16) if only_8_16 else "  ❌ Yok")
 
 print("\n🔥 8 & 32 ORTAK:")
-print("  →", "\n  → ".join(sorted(common_8_32 - common_all)) or "  ❌ Yok")
+only_8_32 = sorted(common_8_32 - common_all)
+print("  →", "\n  → ".join(only_8_32) if only_8_32 else "  ❌ Yok")
 
 print("\n🔥 16 & 32 ORTAK:")
-print("  →", "\n  → ".join(sorted(common_16_32 - common_all)) or "  ❌ Yok")
+only_16_32 = sorted(common_16_32 - common_all)
+print("  →", "\n  → ".join(only_16_32) if only_16_32 else "  ❌ Yok")
 
 print("\n🔥 SADECE 8:")
-print("  →", "\n  → ".join(sorted(unique_8)) or "  ❌ Yok")
+only_8 = sorted(unique_8)
+print("  →", "\n  → ".join(only_8) if only_8 else "  ❌ Yok")
 
 print("\n🔥 SADECE 16:")
-print("  →", "\n  → ".join(sorted(unique_16)) or "  ❌ Yok")
+only_16 = sorted(unique_16)
+print("  →", "\n  → ".join(only_16) if only_16 else "  ❌ Yok")
 
 print("\n🔥 SADECE 32:")
-print("  →", "\n  → ".join(sorted(unique_32)) or "  ❌ Yok")
+only_32 = sorted(unique_32)
+print("  →", "\n  → ".join(only_32) if only_32 else "  ❌ Yok")
 
 print("\n==========================================================\n")
 
 
+print("\n==================== ROOT CAUSE ====================\n")
 
-# ============================================================
-# 5️⃣ ROOT CAUSE ANALYSIS (TS eşleşen + min. 2 model)
-# ============================================================
 
-print("\n==================== ROOT CAUSE ANALYSIS ====================\n")
+def get_root_cause_line(df, idx):
+    vals = [
+        df["root_cause_1"].iloc[idx],
+        df["root_cause_2"].iloc[idx],
+        df["root_cause_3"].iloc[idx]
+    ]
+    vals = [v for v in vals if isinstance(v, str) and v.strip() != ""]
+    return vals
+
 
 intersection_2plus = (common_8_16 | common_8_32 | common_16_32)
 
 if not intersection_2plus:
-    print("⚠️ Hiç ortak anomaly yok, root cause çalıştırılamadı.")
-
+    print("⚠️ Ortak anomaly yok")
 else:
     for ts in sorted(intersection_2plus):
+        print(f"\n🔥 Ortak anomaly: {ts}")
 
-        print(f"\n🔥 Ortak Anomali → {ts}")
+        found = False
+        for df, idx_list, src in [
+            (res16, idx16, "batch=16"),
+            (res8, idx8, "batch=8"),
+            (res32, idx32, "batch=32")
+        ]:
+            matches = [
+                i for i in idx_list
+                if df["timestamp"].iloc[i].strftime("%Y-%m-%d %H:%M:%S.%f")[:-3] == ts
+            ]
 
-        # Hangi modelde varsa o seçilir (öncelik: 16 → 8 → 32)
-        if ts in sec16:
-            model_ts = ts16
-            model_idx = idx16
-            Xs = Xs16
-            Xp = Xp16
-            src = "batch=16"
+            if matches:
+                idx = matches[0]
+                causes = get_root_cause_line(df, idx)
 
-        elif ts in sec8:
-            model_ts = ts8
-            model_idx = idx8
-            Xs = Xs8
-            Xp = Xp8
-            src = "batch=8"
+                if causes:
+                    print(f"→ ROOT CAUSE ({src}):")
+                    for c in causes:
+                        print(f"   - {c}")
+                else:
+                    print(f"→ ROOT CAUSE ({src}): bilgi yok")
 
-        else:
-            model_ts = ts32
-            model_idx = idx32
-            Xs = Xs32
-            Xp = Xp32
-            src = "batch=32"
+                found = True
+                break
 
-        # timestamp → index eşleştirmesi
-        real_idx = [
-            i for i, tt in zip(model_idx, model_ts)
-            if tt.strftime("%Y-%m-%d %H:%M:%S") == ts
-        ][0]
+        if not found:
+            print("→ ROOT CAUSE: eslesen satir bulunamadi")
 
-        df, root = analyze_root_cause(Xs, Xp, real_idx, feats)
-
-        print(df.to_string(index=False))
-        print(f"\n→ ROOT CAUSE ({src}): {root['Feature']} (Z={root['Z-Score']:.2f})")
-        print("------------------------------------------------------------")
+        print("-------------------------------------------")
