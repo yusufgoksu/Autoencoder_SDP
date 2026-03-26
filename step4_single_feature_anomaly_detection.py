@@ -5,40 +5,88 @@ import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+# Dosya Data_For_Test icindeyse bunu kullan
 TEST_DATA_DIR = os.path.join(BASE_DIR, "Data_For_Test")
+
+# Eger dosya direkt proje klasorundeyse, ustteki satiri yorumlayip bunu ac:
+# TEST_DATA_DIR = BASE_DIR
+
 TIMESTAMP_COL = "timestamp"
 SEP = ";"
 
 TEST_FILES = [
-    "testdata2.csv",
+    "testdata3.csv",
 ]
 
 
 def load_test_data():
     all_dfs = []
 
+    print("BASE_DIR:", BASE_DIR)
+    print("TEST_DATA_DIR:", TEST_DATA_DIR)
+
+    if not os.path.exists(TEST_DATA_DIR):
+        raise RuntimeError(f"Test klasoru bulunamadi: {TEST_DATA_DIR}")
+
+    print("Klasordeki dosyalar:", os.listdir(TEST_DATA_DIR))
+    print("TEST_FILES:", TEST_FILES)
+
     for fname in TEST_FILES:
         path = os.path.join(TEST_DATA_DIR, fname)
+        print(f"\nKontrol ediliyor: {path}")
 
         if not os.path.exists(path):
             print(f"UYARI: Dosya bulunamadi -> {path}")
             continue
 
-        print(f"Okunuyor: {fname}")
-        df = pd.read_csv(path, sep=SEP, engine="python")
+        try:
+            df = pd.read_csv(path, sep=SEP, engine="python")
+        except Exception as e:
+            print(f"UYARI: Dosya okunamadi -> {fname} | Hata: {e}")
+            continue
+
+        print(f"Okundu: {fname}")
+        print("Kolonlar:", df.columns.tolist())
+
+        # "index,timestamp" bozuk kolon durumu
+        if len(df.columns) > 0 and df.columns[0] == "index,timestamp":
+            split_cols = df[df.columns[0]].astype(str).str.split(",", n=1, expand=True)
+            df["index"] = split_cols[0]
+            df["timestamp"] = split_cols[1]
+            df = df.drop(columns=[df.columns[0]])
+            print("index,timestamp ayrildi.")
+            print("Yeni kolonlar:", df.columns.tolist())
 
         if TIMESTAMP_COL not in df.columns:
             print(f"UYARI: {fname} icinde timestamp kolonu yok")
             continue
 
-        df[TIMESTAMP_COL] = pd.to_datetime(df[TIMESTAMP_COL], errors="coerce")
-        df = df.dropna(subset=[TIMESTAMP_COL]).copy()
-        df["source_file"] = fname
+        print("Ilk 5 ham timestamp:")
+        print(df[TIMESTAMP_COL].head())
 
+        df[TIMESTAMP_COL] = df[TIMESTAMP_COL].astype(str).str.strip()
+        df[TIMESTAMP_COL] = pd.to_datetime(df[TIMESTAMP_COL], errors="coerce", format="mixed")
+
+        nat_count = df[TIMESTAMP_COL].isna().sum()
+        print("Timestamp NaT sayisi:", nat_count)
+        print("Toplam satir:", len(df))
+
+        df = df.dropna(subset=[TIMESTAMP_COL]).copy()
+        print("Timestamp temizleme sonrasi satir:", len(df))
+
+        if len(df) == 0:
+            print(f"UYARI: {fname} icindeki tum satirlar timestamp parse edilemedigi icin silindi.")
+            continue
+
+        df["source_file"] = fname
         all_dfs.append(df)
 
     if not all_dfs:
-        raise RuntimeError("Test verisi yuklenemedi")
+        raise RuntimeError(
+            "Test verisi yuklenemedi. Yukaridaki loglarda dosya bulundu mu, "
+            "timestamp kolonu var mi ve parse sonrasi satir kaldi mi kontrol et."
+        )
 
     df_all = pd.concat(all_dfs, ignore_index=True)
     df_all = df_all.sort_values(TIMESTAMP_COL).reset_index(drop=True)
@@ -52,20 +100,39 @@ def load_test_data():
 
     return df_all
 
-
 def prepare_test_features(df_all, feat_cols, scaler):
+    print("\ndf_all shape:", df_all.shape)
+    print("feat_cols:", feat_cols)
+    print("df_all columns:", df_all.columns.tolist())
+
     missing_cols = [c for c in feat_cols if c not in df_all.columns]
+    print("missing_cols:", missing_cols)
+
     if missing_cols:
         raise ValueError(f"Test verisinde eksik kolonlar var: {missing_cols}")
 
     X = df_all[feat_cols].copy()
 
+    print("\nIlk 5 satir ham X:")
+    print(X.head())
+
     for c in feat_cols:
         X[c] = pd.to_numeric(X[c], errors="coerce")
 
+    print("\nHer kolondaki NaN sayisi:")
+    print(X.isna().sum())
+
     valid_idx = X.dropna().index
+    print("\nDropna sonrasi kalan satir:", len(valid_idx))
+
     X = X.loc[valid_idx].reset_index(drop=True)
     df_all = df_all.loc[valid_idx].reset_index(drop=True)
+
+    if len(df_all) == 0:
+        raise RuntimeError("load_test_data() bos dataframe dondurdu")
+
+    if len(X) == 0:
+        raise RuntimeError("Tum satirlar NaN oldugu icin silindi. Test veri formati train ile uyusmuyor.")
 
     X_scaled = scaler.transform(X)
 
@@ -171,7 +238,7 @@ def run_anomaly_detection(model, scaler, feat_cols):
     ax.set_title("Single Feature Anomaly Detection on Test Data")
     ax.grid(True)
     ax.legend(loc="upper left")
-    ax.xaxis.set_major_formatter(mdates.DateFormatter("%H:%M:%S.%f"))
+    ax.xaxis.set_major_formatter(mdates.DateFormatter("%H:%M:%S"))
 
     fig.autofmt_xdate()
     plt.tight_layout()

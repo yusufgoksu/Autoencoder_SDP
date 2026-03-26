@@ -10,7 +10,7 @@ TIMESTAMP_COL = "timestamp"
 SEP = ";"
 
 TEST_FILES = [
-    "testdata2.csv",
+    "testdata3.csv",
 ]
 
 
