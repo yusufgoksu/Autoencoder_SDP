@@ -152,7 +152,7 @@ Anomaly grafikleri şu bileşenleri içerir:
 
 ## 🧪 Test Dataset & Anomaly Injection
 
-Test verisi özel olarak hazırlanmıştır — internetten alınan bir dataset **kullanılmamıştır**.
+Test verisi özel olarak hazırlanmıştır — spike ekiin yazdığı spike injection kodundan uretılenı kullandım
 
 - Birden fazla log birleştirildi
 - Ground truth anomaly zamanları oluşturuldu
