@@ -66,7 +66,11 @@ def load_test_data():
         print(df[TIMESTAMP_COL].head())
 
         df[TIMESTAMP_COL] = df[TIMESTAMP_COL].astype(str).str.strip()
-        df[TIMESTAMP_COL] = pd.to_datetime(df[TIMESTAMP_COL], errors="coerce", format="mixed")
+        df[TIMESTAMP_COL] = pd.to_datetime(
+            df[TIMESTAMP_COL],
+            errors="coerce",
+            format="mixed"
+        )
 
         nat_count = df[TIMESTAMP_COL].isna().sum()
         print("Timestamp NaT sayisi:", nat_count)
@@ -76,7 +80,10 @@ def load_test_data():
         print("Timestamp temizleme sonrasi satir:", len(df))
 
         if len(df) == 0:
-            print(f"UYARI: {fname} icindeki tum satirlar timestamp parse edilemedigi icin silindi.")
+            print(
+                f"UYARI: {fname} icindeki tum satirlar "
+                "timestamp parse edilemedigi icin silindi."
+            )
             continue
 
         df["source_file"] = fname
@@ -99,6 +106,7 @@ def load_test_data():
     print("Bitis    :", df_all[TIMESTAMP_COL].max())
 
     return df_all
+
 
 def prepare_test_features(df_all, feat_cols, scaler):
     print("\ndf_all shape:", df_all.shape)
@@ -132,7 +140,10 @@ def prepare_test_features(df_all, feat_cols, scaler):
         raise RuntimeError("load_test_data() bos dataframe dondurdu")
 
     if len(X) == 0:
-        raise RuntimeError("Tum satirlar NaN oldugu icin silindi. Test veri formati train ile uyusmuyor.")
+        raise RuntimeError(
+            "Tum satirlar NaN oldugu icin silindi. "
+            "Test veri formati train ile uyusmuyor."
+        )
 
     X_scaled = scaler.transform(X)
 
@@ -149,17 +160,20 @@ def feature_to_text(feature_name, direction):
 
     if feature_name.startswith("TORQUE_A"):
         return f"{feature_name} normalden {direction_text}"
+
     if feature_name.startswith("CURR_A"):
         return f"{feature_name} normalden {direction_text}"
+
     if feature_name.startswith("MOT_TEMP_A"):
         return f"{feature_name} normalden {direction_text}"
+
     if feature_name.startswith("VEL_AXIS_ACT_A"):
         return f"{feature_name} normalden {direction_text}"
 
     return f"{feature_name} normalden {direction_text}"
 
 
-def run_anomaly_detection(model, scaler, feat_cols):
+def run_anomaly_detection(model, scaler, feat_cols, single_feature_threshold):
     print("STEP-4 SINGLE FEATURE ANOMALY DETECTION baslatildi")
 
     df_all = load_test_data()
@@ -170,14 +184,25 @@ def run_anomaly_detection(model, scaler, feat_cols):
     error_matrix = (X_scaled - X_pred) ** 2
     signed_diff = X_scaled - X_pred
 
+    # Her timestamp icin en buyuk feature-level reconstruction error
     max_feature_error = np.max(error_matrix, axis=1)
 
+    # Her timestamp icin en cok hata yapan feature
     top_feature_idx = np.argmax(error_matrix, axis=1)
     top_feature_names = [feat_cols[i] for i in top_feature_idx]
 
-    top_feature_signed_diff = signed_diff[np.arange(len(signed_diff)), top_feature_idx]
+    # En cok hata yapan feature'in signed difference degeri
+    # Pozitifse normalden yuksek, negatifse normalden dusuk yorumu yapacagiz
+    top_feature_signed_diff = signed_diff[
+        np.arange(len(signed_diff)),
+        top_feature_idx
+    ]
 
-    threshold_feature = max_feature_error.mean() + 3 * max_feature_error.std()
+    # ONEMLI:
+    # Threshold artik test datasindan hesaplanmiyor.
+    # Data_For_Train uzerinden step3_autoencoder.py icinde hesaplanan
+    # single_feature_threshold burada kullaniliyor.
+    threshold_feature = single_feature_threshold
 
     anomaly_idx = np.where(max_feature_error > threshold_feature)[0]
 
@@ -186,13 +211,16 @@ def run_anomaly_detection(model, scaler, feat_cols):
     print("====================")
     print("Toplam test ornegi:", len(df_all))
     print("Anomaly sayisi:", len(anomaly_idx))
-    print("Threshold:", threshold_feature)
+    print("Train-based single feature threshold:", threshold_feature)
     print("Max feature error min :", max_feature_error.min())
     print("Max feature error mean:", max_feature_error.mean())
     print("Max feature error max :", max_feature_error.max())
 
     result_df = df_all.copy()
     result_df["max_feature_error"] = max_feature_error
+    result_df["single_feature_threshold"] = threshold_feature
+    result_df["distance_from_threshold"] = max_feature_error - threshold_feature
+    result_df["severity_ratio"] = max_feature_error / threshold_feature
     result_df["is_anomaly"] = False
     result_df["top_error_feature"] = top_feature_names
     result_df["top_feature_signed_diff"] = top_feature_signed_diff
@@ -207,6 +235,8 @@ def run_anomaly_detection(model, scaler, feat_cols):
         for i in anomaly_idx:
             ts = result_df[TIMESTAMP_COL].iloc[i]
             err = max_feature_error[i]
+            distance = err - threshold_feature
+            ratio = err / threshold_feature
 
             feat = top_feature_names[i]
             diff = top_feature_signed_diff[i]
@@ -216,14 +246,27 @@ def run_anomaly_detection(model, scaler, feat_cols):
             result_df.at[i, "root_cause_text"] = comment
 
             print(f"\nANOMALY -> saat={ts.strftime('%H:%M:%S.%f')[:-3]} | error={err:.6f}")
-            print(f"  1. {comment} | scaled={diff:.3f}")
+            print(f"  Threshold distance: {distance:.6f}")
+            print(f"  Severity ratio    : {ratio:.3f}")
+            print(f"  1. {comment} | scaled diff={diff:.3f}")
 
     print("\nSonuclar sadece ekranda gosteriliyor, dosyaya kaydedilmiyor.")
 
     fig, ax = plt.subplots(figsize=(18, 7))
 
-    ax.plot(df_all[TIMESTAMP_COL], max_feature_error, linewidth=1, label="Max Feature Error")
-    ax.axhline(threshold_feature, color="red", linestyle="--", label="Threshold")
+    ax.plot(
+        df_all[TIMESTAMP_COL],
+        max_feature_error,
+        linewidth=1,
+        label="Max Feature Error"
+    )
+
+    ax.axhline(
+        threshold_feature,
+        color="red",
+        linestyle="--",
+        label=f"Train-based Threshold = {threshold_feature:.6f}"
+    )
 
     if len(anomaly_idx) > 0:
         ax.scatter(
