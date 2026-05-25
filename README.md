@@ -152,7 +152,7 @@ Anomaly grafikleri şu bileşenleri içerir:
 
 ## 🧪 Test Dataset & Anomaly Injection
 
-Test verisi özel olarak hazırlanmıştır — spike ekiin yazdığı spike injection kodundan uretılenı kullandım
+Test verisi özel olarak hazırlanmıştır — internetten alınan bir dataset **kullanılmamıştır**.
 
 - Birden fazla log birleştirildi
 - Ground truth anomaly zamanları oluşturuldu
@@ -250,81 +250,3 @@ Bu proje aşağıdaki alanlardaki araştırmalara dayanmaktadır:
 > **1.** Robot davranışı anormal mi?
 >
 > **2.** Hangi sensör bu anomaliye sebep oluyor?
-
-
-
-
-## 📚 Related Work
-
-Bu proje, endüstriyel robot verilerinde anomaly detection için kullanılan modern yaklaşımlara dayanmaktadır. Özellikle autoencoder tabanlı yöntemler ve multivariate sensor analizi literatürde yaygın olarak kullanılmaktadır.
-
-Aşağıdaki çalışmalar bu projeyi desteklemektedir:
-
----
-
-### 🔹 Autoencoder & Multivariate Anomaly Detection
-
-✔ **Sakurada & Yairi (2014)**  
-Autoencoder kullanarak reconstruction error ile anomaly detection yapılmıştır.  
-👉 Temel yaklaşımımızın akademik karşılığıdır  
-🔗 https://arxiv.org/abs/1408.6404  
-
-✔ **Zong et al. (DAGMM, 2018)**  
-Autoencoder + density estimation ile anomaly detection  
-👉 Multisensor veri ve unsupervised learning kullanımı  
-🔗 https://arxiv.org/abs/1802.00187  
-
----
-
-### 🔹 Time-Series Based Industrial Anomaly Detection
-
-✔ **Malhotra et al. (LSTM-based Anomaly Detection)**  
-Zaman serilerinde anomaly detection için deep learning yaklaşımı  
-👉 Sequence modeling kullanılan alternatif yöntem  
-🔗 https://arxiv.org/abs/1502.04431  
-
-✔ **Chen et al. (Robot Anomaly Detection)**  
-Industrial robot verisinde unsupervised anomaly detection  
-👉 Robot sensör verisi üzerinde uygulama  
-🔗 https://doaj.org/article/d1c2f807a28c4c15b09c13af09db1cc0  
-
----
-
-### 🔹 KUKA Robot Based Studies
-
-✔ **H. Kim (Purdue Thesis)**  
-KUKA robot üzerinde anomaly detection  
-👉 Spectrogram + neural network yaklaşımı  
-👉 Reconstruction mantığı ile benzer  
-🔗 https://hammer.purdue.edu/articles/Machine_Anomaly_Detection_using_Sound_Spectrogram_Images_and_Neural_Networks/8864375  
-
-✔ **AnoF-Diff (KUKA LBR iiwa)**  
-KUKA robot kolunda anomaly detection  
-👉 Farklı yöntem (diffusion) ama aynı problem  
-🔗 https://arxiv.org/pdf/2509.15153  
-
----
-
-## 📌 Key Takeaways from Literature
-
-✔ Autoencoder ile anomaly detection endüstride standarttır  
-✔ Multivariate sensor verisi birlikte değerlendirilmelidir  
-✔ Reconstruction error en yaygın anomaly metriğidir  
-✔ Unsupervised learning gerçek robot verileri için kritiktir  
-✔ Time-series ve non-time-series yaklaşımlar birlikte kullanılabilir  
-
----
-
-## 🎯 This Project's Position
-
-Bu proje:
-
-✔ Autoencoder tabanlı  
-✔ Multivariate sensor analysis  
-✔ Reconstruction error approach  
-✔ Unsupervised learning  
-✔ Industrial robot (KUKA) domain  
-
-yaklaşımıyla literatürdeki modern anomaly detection yöntemleriyle uyumludur.
-
-
